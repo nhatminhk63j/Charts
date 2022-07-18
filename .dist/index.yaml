@@ -3,12 +3,11 @@ entries:
   backend:
   - apiVersion: v2
     appVersion: 1.16.0
-    created: "2022-07-18T08:02:23.341750926Z"
+    created: "2022-07-18T08:28:23.754722897Z"
     description: A Helm chart for backend
-    digest: 762eb15053ae3749698acfeccefc9b610c4960adef12c0e3c9d44dbaaf5be98b
+    digest: 940cbbc4240fb6d2b8080a5baaaea94ef045389e0f0dea0596bf82e033c9c28d
     name: backend
-    type: library
     urls:
     - https://nhatminhk63j.github.io/Charts/backend-0.1.0.tgz
     version: 0.1.0
-generated: "2022-07-18T08:02:23.341123618Z"
+generated: "2022-07-18T08:28:23.754004949Z"
