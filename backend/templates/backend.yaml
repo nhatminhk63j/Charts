@@ -72,7 +72,6 @@ spec:
 
           env:
             {{- include "backend.env" (mergeOverwrite dict $.Values.env ($deploy.env | default dict)) | nindent 12 }}
-            {{- include "backend.extraEnv" (concat $.Values.extraEnv ($deploy.extraEnv | default list)) | nindent 12 }}
           {{- include "backend.cmd" $deploy | nindent 10 }}        
           {{- if or $deploy.service $deploy.prometheusScrapePort }}
           ports:
