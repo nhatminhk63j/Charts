@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  backend:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2022-07-18T07:58:03.446040669Z"
+    description: A Helm chart for backend
+    digest: 4d38efea24d4d44b3f9d332278116f40aeceee2791187643084a3747dc2bd0bb
+    name: backend
+    type: library
+    urls:
+    - https://duyet.github.io/charts/backend-0.1.0.tgz
+    version: 0.1.0
+generated: "2022-07-18T07:58:03.445433568Z"
