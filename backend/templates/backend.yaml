@@ -1,0 +1,221 @@
+{{- range $deploy :=  $.Values.deploys }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ printf "%s-%s" (include "backend.fullname" $) $deploy.name }}
+  labels:
+    app.kubernetes.io/instance: {{ printf "%s-%s" (include "backend.name" $) $deploy.name }}
+    {{- include "backend.labels" $ | nindent 4 }}
+spec:
+  {{- if $deploy.disabledOnStandbyCluster }}
+    {{- if $.Values.role }}
+      {{- if eq $.Values.role "active" }}
+  replicas: {{ $deploy.replicasCount | default 0 }}
+      {{- else }}
+  replicas: 0
+      {{- end }}
+    {{- else }}
+  replicas: {{ $deploy.replicasCount | default 0 }}
+    {{- end }}
+  {{- else }}
+  replicas: {{ $deploy.replicasCount | default 0 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "backend.name" $ }}
+      app.kubernetes.io/instance: {{ printf "%s-%s" (include "backend.name" $) $deploy.name }}
+  template:
+    metadata:
+      annotations:
+        {{- if $deploy.linkerdEnabled }}
+        linkerd.io/inject: "enabled"
+        {{- if $deploy.linkerdProxyConfig}}
+        {{- if $deploy.linkerdProxyConfig.cpu}}
+        config.linkerd.io/proxy-cpu-request: {{ $deploy.linkerdProxyConfig.cpu.request | default 0.01 | quote }}
+        config.linkerd.io/proxy-cpu-limit: {{ $deploy.linkerdProxyConfig.cpu.limit | default 0.05 | quote }}
+        {{- end }}
+        {{- if $deploy.linkerdProxyConfig.memory}}
+        config.linkerd.io/proxy-memory-request: {{ $deploy.linkerdProxyConfig.memory.request | default "20Mi" }}
+        config.linkerd.io/proxy-memory-limit: {{ $deploy.linkerdProxyConfig.memory.limit | default "50Mi" }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        sidecar.istio.io/inject: {{ $deploy.istioEnabled | default false | quote }}
+        {{- if or $deploy.service $deploy.prometheusScrapeEnabled }}
+        prometheus.io/scrape: {{ $deploy.prometheusScrapeEnabled | default true | quote }}
+        {{- if $deploy.prometheusScrapePort }} 
+        prometheus.io/port: {{ $deploy.prometheusScrapePort | quote }}
+        {{- end }}
+        {{- end }}
+        {{- if $.Values.configMap }}
+        checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") $ | sha256sum }}
+        {{- end }}
+        {{- if $.Values.secret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.sealed.yaml") $ | sha256sum }}
+        {{- end }}
+      labels:
+        app.kubernetes.io/name: {{ include "backend.name" $ }}
+        app.kubernetes.io/instance: {{ include "backend.name" $ }}-{{ $deploy.name }}
+        {{- if $.Values.extraLabels }}
+        {{- toYaml $.Values.extraLabels | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ include "backend.name" $ }}-{{ $deploy.name }}
+          image: {{ printf "%s:%s" $.Values.image.repository $.Values.image.tag | quote }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+
+          env:
+            {{- include "backend.env" (mergeOverwrite dict $.Values.env ($deploy.env | default dict)) | nindent 12 }}
+            {{- include "backend.extraEnv" (concat $.Values.extraEnv ($deploy.extraEnv | default list)) | nindent 12 }}
+          {{- include "backend.cmd" $deploy | nindent 10 }}        
+          {{- if or $deploy.service $deploy.prometheusScrapePort }}
+          ports:
+            {{- with $deploy.service }}
+            - name: http
+              containerPort: {{ $deploy.service.containerPort | default $deploy.service.HTTPPort | default 80 }}
+              protocol: TCP
+            {{- with $deploy.service.GRPCPort }}
+            - name: grpc
+              containerPort: {{ . }}
+              protocol: TCP
+            {{- end }}
+            {{- end }}
+            {{- with $deploy.prometheusScrapePort }}
+            - name: metrics
+              containerPort: {{ . }}
+              protocol: TCP
+            {{- end }}
+            {{- with .health }}
+            {{- with .livenessPort }}
+            - name: liveness
+              containerPort: {{ . }}
+            {{- end }}
+            {{- with .readinessPort }}
+            - name: readiness
+              containerPort: {{ . }}
+            {{- end }}
+            {{- end }}
+
+          {{- with $deploy.service }}
+          {{- if $deploy.service.livenessProbe }}
+          livenessProbe: {{- toYaml $deploy.service.livenessProbe | nindent 12 }}
+          {{ else }}
+          livenessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 5 
+            {{- with (.health | default dict).livenessTimeoutSeconds }}
+            timeoutSeconds: {{ . }}
+            {{- end }}
+            httpGet:
+              path: {{ (.health | default dict).live | default "/health" }} 
+              port: {{ (.health | default dict).livenessPort | default "http" }}
+          {{- end }}
+          {{- if $deploy.service.readinessProbe }}
+          readinessProbe: {{- toYaml $deploy.service.readinessProbe | nindent 12 }}
+          {{ else }}
+          readinessProbe:
+            {{- with (.health | default dict).readinessTimeoutSeconds }}
+            timeoutSeconds: {{ . }}
+            {{- end }}
+            httpGet:
+              path: {{ (.health | default dict).ready | default "/health" }} 
+              port: {{ (.health | default dict).readinessPort | default "http" }}
+          {{- end }}
+
+          {{- end }}
+          {{- end }}
+
+          {{- include "backend.resources" ($deploy.resources | default ($.Values.resources | default dict)) | nindent 10 }}
+          {{- if or .mountConfigMaps .mountSecrets }}
+          volumeMounts:
+          {{- range .mountConfigMaps }}
+          - name: config-{{ .name }}-volume
+            mountPath: {{ .mountPath }}
+          {{- end }}
+          {{- range .mountSecrets }}
+          - name: secret-{{ .name }}-volume
+            mountPath: {{ .mountPath }}
+          {{- end }}
+          {{- end }}
+      {{- if or .mountConfigMaps .mountSecrets }}
+      volumes:
+      {{- range .mountConfigMaps }}
+      - name: config-{{ .name }}-volume
+        configMap:
+          name: {{ .name }} 
+      {{- end }}
+      {{- range .mountSecrets }}
+      - name: secret-{{ .name }}-volume
+        secret:
+          secretName: {{ .name }}
+          {{- if .defaultMode }}
+          defaultMode: {{ .defaultMode }}
+          {{- end }} 
+      {{- end }}
+      {{ end }}
+
+      {{- with $deploy.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $deploy.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $deploy.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+{{- with $deploy.service }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .name | default (printf "%s-%s" (include "backend.fullname" $) $deploy.name) }}
+  labels:
+    {{- if $deploy.service.multicluster }}
+    mirror.linkerd.io/exported: "true"
+    {{- end }}
+    app.kubernetes.io/instance: {{ printf "%s-%s" (include "backend.name" $) $deploy.name }}
+    {{- include "backend.labels" $ | nindent 4 }}
+spec:
+  type: {{ .type }}
+  ports:
+    - port: {{ .port | default 80 }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    {{- with $deploy.service.GRPCPort }}
+    - port: 443
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+    {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ include "backend.name" $ }}
+    app.kubernetes.io/instance: {{ printf "%s-%s" (include "backend.name" $) $deploy.name }}
+{{- end }}
+{{- with $deploy.autoScale }}
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ printf "%s-%s" (include "backend.fullname" $) $deploy.name }}
+spec:
+  maxReplicas: {{ .max }}
+  minReplicas: {{ .min | default 2 }}
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ printf "%s-%s" (include "backend.fullname" $) $deploy.name }}
+  targetCPUUtilizationPercentage: {{ .cpu | default 60}}
+{{- end }}
+{{- end }}

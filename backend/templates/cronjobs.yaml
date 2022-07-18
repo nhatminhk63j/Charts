@@ -1,0 +1,194 @@
+{{- range $cronjob := $.Values.cronJobs -}}
+---
+{{- if $cronjob.disabledOnStandbyCluster }}
+  {{- if $.Values.role }}
+    {{- if eq $.Values.role "active"}}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ printf "%s-%s" (include "backend.fullname" $) $cronjob.name }}
+  labels:
+    app.kubernetes.io/instance: {{ printf "%s-%s" (include "backend.name" $) $cronjob.name }}
+    {{- include "backend.labels" $ | nindent 4 }}
+spec:
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  startingDeadlineSeconds: 100
+  concurrencyPolicy: {{ $cronjob.concurrencyPolicy | default "Replace"}}
+  schedule: {{ $cronjob.schedule | quote }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          {{- with $.Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+          - name: {{ printf "%s-%s" (include "backend.name" $) $cronjob.name }}
+            image: {{ printf "%s:%s" $.Values.image.repository $.Values.image.tag | quote }}
+            imagePullPolicy: {{ $.Values.image.pullPolicy }}
+            {{- include "backend.cmd" $cronjob | nindent 12}}
+            {{- include "backend.resources" ($cronjob.resources | default ($.Values.resources | default dict)) | nindent 12 }}
+            env:
+              {{- include "backend.env" (mergeOverwrite dict ($.Values.env | default dict) ($cronjob.env | default dict)) | nindent 14 }}
+              {{- include "backend.extraEnv" (concat $.Values.extraEnv ($cronjob.extraEnv | default list)) | nindent 14 }}
+            {{- if or .mountConfigMaps .mountSecrets }}
+            volumeMounts:
+            {{- range .mountConfigMaps }}
+            - name: config-{{ .name }}-volume
+              mountPath: {{ .mountPath }}
+            {{- end }}
+            {{- range .mountSecrets }}
+            - name: secret-{{ .name }}-volume
+              mountPath: {{ .mountPath }}
+            {{- end }}
+            {{- end }}
+          {{- if or .mountConfigMaps .mountSecrets }}
+          volumes:
+          {{- range .mountConfigMaps }}
+          - name: config-{{ .name }}-volume
+            configMap:
+              name: {{ .name }} 
+          {{- end }}
+          {{- range .mountSecrets }}
+          - name: secret-{{ .name }}-volume
+            secret:
+              secretName: {{ .name }}
+              {{- if .defaultMode }}
+              defaultMode: {{ .defaultMode }}
+              {{- end }} 
+          {{- end }}
+          {{ end }}
+          restartPolicy: OnFailure
+    {{- end }}
+  {{- else }}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ printf "%s-%s" (include "backend.fullname" $) $cronjob.name }}
+  labels:
+    app.kubernetes.io/instance: {{ printf "%s-%s" (include "backend.name" $) $cronjob.name }}
+    {{- include "backend.labels" $ | nindent 4 }}
+spec:
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  startingDeadlineSeconds: 100
+  concurrencyPolicy: {{ $cronjob.concurrencyPolicy | default "Replace"}}
+  schedule: {{ $cronjob.schedule | quote }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          {{- with $.Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+          - name: {{ printf "%s-%s" (include "backend.name" $) $cronjob.name }}
+            image: {{ printf "%s:%s" $.Values.image.repository $.Values.image.tag | quote }}
+            imagePullPolicy: {{ $.Values.image.pullPolicy }}
+            {{- include "backend.cmd" $cronjob | nindent 12}}
+            env:
+              {{- include "backend.env" (mergeOverwrite dict ($.Values.env | default dict) ($cronjob.env | default dict)) | nindent 14 }}
+              {{- include "backend.extraEnv" (concat $.Values.extraEnv ($cronjob.extraEnv | default list)) | nindent 14 }}
+            {{- include "backend.resources" ($cronjob.resources | default ($.Values.resources | default dict)) | nindent 12 }}
+            {{- if or .mountConfigMaps .mountSecrets }}
+            volumeMounts:
+            {{- range .mountConfigMaps }}
+            - name: config-{{ .name }}-volume
+              mountPath: {{ .mountPath }}
+            {{- end }}
+            {{- range .mountSecrets }}
+            - name: secret-{{ .name }}-volume
+              mountPath: {{ .mountPath }}
+            {{- end }}
+            {{- end }}
+          {{- if or .mountConfigMaps .mountSecrets }}
+          volumes:
+          {{- range .mountConfigMaps }}
+          - name: config-{{ .name }}-volume
+            configMap:
+              name: {{ .name }} 
+          {{- end }}
+          {{- range .mountSecrets }}
+          - name: secret-{{ .name }}-volume
+            secret:
+              secretName: {{ .name }}
+              {{- if .defaultMode }}
+              defaultMode: {{ .defaultMode }}
+              {{- end }} 
+          {{- end }}
+          {{ end }}
+          restartPolicy: OnFailure
+  {{- end }}
+{{- else }}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ printf "%s-%s" (include "backend.fullname" $) $cronjob.name }}
+  labels:
+    app.kubernetes.io/instance: {{ printf "%s-%s" (include "backend.name" $) $cronjob.name }}
+    {{- include "backend.labels" $ | nindent 4 }}
+spec:
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  startingDeadlineSeconds: 100
+  concurrencyPolicy: {{ $cronjob.concurrencyPolicy | default "Replace"}}
+  schedule: {{ $cronjob.schedule | quote }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          {{- with $.Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+          - name: {{ printf "%s-%s" (include "backend.name" $) $cronjob.name }}
+            image: {{ printf "%s:%s" $.Values.image.repository $.Values.image.tag | quote }}
+            imagePullPolicy: {{ $.Values.image.pullPolicy }}
+            {{- include "backend.cmd" $cronjob | nindent 12}}
+            env:
+              {{- include "backend.env" (mergeOverwrite dict ($.Values.env | default dict) ($cronjob.env | default dict)) | nindent 14 }}
+              {{- include "backend.extraEnv" (concat $.Values.extraEnv ($cronjob.extraEnv | default list)) | nindent 14 }}
+            {{- include "backend.resources" ($cronjob.resources | default ($.Values.resources | default dict)) | nindent 12 }}
+            {{- if or .mountConfigMaps .mountSecrets }}
+            volumeMounts:
+            {{- range .mountConfigMaps }}
+            - name: config-{{ .name }}-volume
+              mountPath: {{ .mountPath }}
+            {{- end }}
+            {{- range .mountSecrets }}
+            - name: secret-{{ .name }}-volume
+              mountPath: {{ .mountPath }}
+            {{- end }}
+            {{- end }}
+          {{- if or .mountConfigMaps .mountSecrets }}
+          volumes:
+          {{- range .mountConfigMaps }}
+          - name: config-{{ .name }}-volume
+            configMap:
+              name: {{ .name }} 
+          {{- end }}
+          {{- range .mountSecrets }}
+          - name: secret-{{ .name }}-volume
+            secret:
+              secretName: {{ .name }}
+              {{- if .defaultMode }}
+              defaultMode: {{ .defaultMode }}
+              {{- end }} 
+          {{- end }}
+          {{ end }}
+          restartPolicy: OnFailure
+{{- end }}
+{{ end }}

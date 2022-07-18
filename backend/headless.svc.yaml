@@ -1,0 +1,31 @@
+{{- range $deploy :=  $.Values.deploys }}
+{{- with $deploy.service }}
+{{- if .headless | default false }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ default (printf "%s-%s" (include "backend.fullname" $) $deploy.name) }}-headless
+  labels:
+    app.kubernetes.io/instance: {{ printf "%s-%s" (include "backend.name" $) $deploy.name }}
+    {{- include "backend.labels" $ | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: none
+  ports:
+    - port: {{ .port | default 80 }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    {{- with $deploy.service.GRPCPort }}
+    - port: 443
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+    {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ include "backend.name" $ }}
+    app.kubernetes.io/instance: {{ printf "%s-%s" (include "backend.name" $) $deploy.name }}
+{{- end }}
+{{- end }}
+{{- end }}

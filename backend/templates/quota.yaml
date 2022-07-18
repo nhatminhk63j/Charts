@@ -1,0 +1,19 @@
+{{- range $quota :=  $.Values.quotas }}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ printf "quota-limit-%s"  $quota.namespace }}
+  namespace: {{ $quota.namespace }} 
+spec:
+  hard: {{ .resources | toYaml | nindent 3 }}
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    namespace: {{ $quota.namespace }} 
+  name: {{ $quota.namespace }} 
+
+{{- end }}
