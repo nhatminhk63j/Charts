@@ -32,6 +32,12 @@ jobs:
     - name: Run chart-testing (lint)
       run: ct lint --config .github/ct-lint.yaml
 
+    - name: List file
+      run: ls
+
+    - name: Read file
+      run: cat ./build.sh
+
     - name: Helm build packages
       run: sudo build.sh
 
