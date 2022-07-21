@@ -6,6 +6,7 @@ metadata:
   name: {{ printf "%s-%s" (include "backend.fullname" $) $deploy.name }}
   labels:
     app.kubernetes.io/instance: {{ printf "%s-%s" (include "backend.name" $) $deploy.name }}
+    prometheus.io/scrape: {{ $deploy.prometheusScrapeEnabled | default true | quote }}
     {{- include "backend.labels" $ | nindent 4 }}
 spec:
   {{- if $deploy.disabledOnStandbyCluster }}
